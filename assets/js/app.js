@@ -20,9 +20,7 @@
   // ---------- Formatting helpers ----------
 
   const rupiah = new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0
+    style: 'currency', currency: 'IDR', maximumFractionDigits: 0
   });
 
   function formatPrice(value) {
@@ -37,8 +35,24 @@
     return (value / 1000).toFixed(0) + 'K';
   }
 
-  function findBike(id) {
-    return bikes.find(b => b.id === id);
+  function findBike(id) { return bikes.find(b => b.id === id); }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  // ---------- Availability ----------
+
+  const AVAILABILITY = {
+    available:   { label: 'Available now', cls: 'is-available', bookable: true },
+    limited:     { label: 'Last one',      cls: 'is-limited',   bookable: true },
+    unavailable: { label: 'Fully booked',  cls: 'is-booked',    bookable: false }
+  };
+
+  function availabilityOf(bike) {
+    return AVAILABILITY[bike.status] || AVAILABILITY.available;
   }
 
   // ---------- Render catalog ----------
@@ -52,14 +66,20 @@
       : bikes;
 
     list.forEach(bike => {
+      const avail = availabilityOf(bike);
       const card = document.createElement('article');
-      card.className = 'bike-card';
+      card.className = 'bike-card' + (avail.bookable ? '' : ' is-unavailable');
       card.dataset.category = bike.category;
 
       const safeName = escapeHtml(bike.name);
       const safeTag = escapeHtml(bike.tagline);
       const badge = bike.badge ? `<span class="bike-badge">${escapeHtml(bike.badge)}</span>` : '';
       const fallbackText = safeName.split(' ').slice(0, 2).join('<br>');
+
+      const cta = avail.bookable
+        ? `<button class="btn btn-primary btn-sm" type="button" data-book="${bike.id}">Book now</button>`
+        : `<a class="btn btn-ghost btn-sm" href="https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+              `Hi! Is the ${bike.name} available any time soon?`)}" target="_blank" rel="noopener">Ask for dates</a>`;
 
       card.innerHTML = `
         <div class="bike-image">
@@ -72,6 +92,7 @@
             <h3 class="bike-name">${safeName}</h3>
             <div class="bike-meta">${safeTag}</div>
           </div>
+          <p class="bike-availability ${avail.cls}"><span class="dot" aria-hidden="true"></span>${avail.label}</p>
           <div class="bike-price">
             <div class="bike-price-row">
               <span class="label">Per day</span>
@@ -84,30 +105,32 @@
           </div>
           <div class="bike-cta">
             <span class="bike-meta">From ${shortPrice(bike.pricePerDay)}/day</span>
-            <button class="btn btn-primary btn-sm" type="button" data-book="${bike.id}">Book now</button>
+            ${cta}
           </div>
         </div>
       `;
 
-      // Promote fallback if image fails
       const img = card.querySelector('img');
       const fallback = card.querySelector('.bike-fallback');
-      img.addEventListener('error', () => {
-        img.remove();
-        fallback.style.zIndex = '1';
-      });
-      img.addEventListener('load', () => {
-        fallback.style.opacity = '0';
-      });
+      img.addEventListener('error', () => { img.remove(); });
+      img.addEventListener('load', () => { fallback.style.opacity = '0'; });
 
       grid.appendChild(card);
     });
   }
 
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, c => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
+  // ---------- Photo credits (required by the CC licences) ----------
+
+  function renderCredits() {
+    const el = document.getElementById('photo-credits');
+    if (!el) return;
+    const items = bikes.filter(b => b.credit).map(b =>
+      `<li><strong>${escapeHtml(b.name)}</strong> — ${escapeHtml(b.credit.title)}, `
+      + `${escapeHtml(b.credit.author)}, ${escapeHtml(b.credit.license)}`
+      + (b.photoNote ? ` <em>(${escapeHtml(b.photoNote)})</em>` : '')
+      + `</li>`
+    );
+    el.innerHTML = items.join('');
   }
 
   // ---------- Filters ----------
@@ -126,15 +149,24 @@
 
   // ---------- Modal ----------
 
+  let lastFocused = null;
+
+  function toDateInput(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   function openBooking(bikeId) {
     const bike = findBike(bikeId);
-    if (!bike) return;
+    if (!bike || !availabilityOf(bike).bookable) return;
 
+    lastFocused = document.activeElement;
     modalBikeInput.value = bike.id;
     modalTitle.textContent = `Reserve the ${bike.name}`;
     modalMeta.textContent = `${bike.tagline} · ${formatPrice(bike.pricePerDay)} / day · ${formatPrice(bike.pricePerMonth)} / month`;
 
-    // Sensible default dates: today → tomorrow
     const today = new Date();
     const tomorrow = new Date(today.getTime() + 86400000);
     startInput.min = toDateInput(today);
@@ -153,30 +185,25 @@
     modal.hidden = true;
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
-  }
-
-  function toDateInput(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
   }
 
   document.addEventListener('click', (e) => {
     const bookBtn = e.target.closest('[data-book]');
-    if (bookBtn) {
-      e.preventDefault();
-      openBooking(bookBtn.dataset.book);
-      return;
-    }
-    if (e.target.matches('[data-close]')) {
-      e.preventDefault();
-      closeBooking();
-    }
+    if (bookBtn) { e.preventDefault(); openBooking(bookBtn.dataset.book); return; }
+    if (e.target.matches('[data-close]')) { e.preventDefault(); closeBooking(); }
   });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !modal.hidden) closeBooking();
+    // keep focus inside the dialog while it is open
+    if (e.key === 'Tab' && !modal.hidden) {
+      const f = modal.querySelectorAll('button, input, select, textarea, a[href]');
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
 
   // ---------- Summary calculation ----------
@@ -185,8 +212,21 @@
     if (!startInput.value || !endInput.value) return 0;
     const s = new Date(startInput.value);
     const e = new Date(endInput.value);
-    const days = Math.round((e - s) / 86400000);
-    return Math.max(days, 0);
+    return Math.max(Math.round((e - s) / 86400000), 0);
+  }
+
+  function priceFor(bike, days) {
+    if (days >= 28) {
+      const months = days / 30;
+      return {
+        total: Math.round(bike.pricePerMonth * months),
+        line: `${formatPrice(bike.pricePerMonth)} × ${months.toFixed(2)} month${months > 1 ? 's' : ''}`
+      };
+    }
+    return {
+      total: bike.pricePerDay * days,
+      line: `${formatPrice(bike.pricePerDay)} × ${days} day${days > 1 ? 's' : ''}`
+    };
   }
 
   function updateSummary() {
@@ -199,29 +239,17 @@
       return;
     }
 
-    // Apply monthly rate proportionally if >= 28 days, else daily rate.
-    let priceLine, total;
-    if (days >= 28) {
-      const months = days / 30;
-      total = Math.round(bike.pricePerMonth * months);
-      priceLine = `${formatPrice(bike.pricePerMonth)} × ${months.toFixed(2)} month${months > 1 ? 's' : ''}`;
-    } else {
-      total = bike.pricePerDay * days;
-      priceLine = `${formatPrice(bike.pricePerDay)} × ${days} day${days > 1 ? 's' : ''}`;
-    }
-
+    const { total, line } = priceFor(bike, days);
     summary.innerHTML = `
       <div class="row"><span>${escapeHtml(bike.name)}</span><span class="muted">${days} day${days > 1 ? 's' : ''}</span></div>
-      <div class="row"><span class="muted">${priceLine}</span></div>
+      <div class="row"><span class="muted">${line}</span></div>
       <div class="row total"><span>Estimated total</span><span>${formatPrice(total)}</span></div>
     `;
   }
 
   ['change', 'input'].forEach(evt => {
     startInput.addEventListener(evt, () => {
-      if (endInput.value && endInput.value < startInput.value) {
-        endInput.value = startInput.value;
-      }
+      if (endInput.value && endInput.value < startInput.value) endInput.value = startInput.value;
       endInput.min = startInput.value;
       updateSummary();
     });
@@ -232,19 +260,14 @@
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
+    if (!form.checkValidity()) { form.reportValidity(); return; }
 
     const data = Object.fromEntries(new FormData(form).entries());
     const bike = findBike(data.bike);
     if (!bike) return;
 
     const days = calcDays();
-    const total = days >= 28
-      ? Math.round(bike.pricePerMonth * (days / 30))
-      : bike.pricePerDay * days;
+    const { total } = priceFor(bike, days);
 
     const lines = [
       `Halo Amelia's Bike Rental! I'd like to book a bike.`,
@@ -269,4 +292,5 @@
   // ---------- Init ----------
 
   renderGrid('all');
+  renderCredits();
 })();
