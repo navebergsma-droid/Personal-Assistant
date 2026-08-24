@@ -177,7 +177,7 @@ p:last-child { margin-bottom: 0; }
   color: #fff;
   background:
     linear-gradient(180deg, rgba(20,30,50,0.55) 0%, rgba(20,30,50,0.35) 50%, rgba(20,30,50,0.7) 100%),
-    url('https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=1900&q=80') center/cover no-repeat;
+    url('../img/hero.jpg') center/cover no-repeat;
   overflow: hidden;
 }
 
@@ -651,3 +651,62 @@ p:last-child { margin-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ============ Availability ============ */
+
+.bike-availability {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.bike-availability .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.bike-availability.is-available { color: #2f7d5d; }
+.bike-availability.is-limited   { color: #b07216; }
+.bike-availability.is-booked    { color: var(--muted); }
+
+.bike-card.is-unavailable .bike-image img { filter: grayscale(0.75); opacity: 0.75; }
+.bike-card.is-unavailable:hover { transform: none; }
+
+/* ============ Photo credits ============ */
+
+.credits {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  font-size: 0.78rem;
+}
+
+.credits summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-weight: 500;
+  list-style: revert;
+}
+.credits summary:hover { color: var(--accent); }
+
+.credits ul {
+  margin: 12px 0 8px;
+  padding-left: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 4px 24px;
+  color: var(--muted);
+}
+
+.credits li { line-height: 1.5; }
+.credits strong { color: var(--ink-soft); font-weight: 600; }
+.credits em { color: var(--muted); }
+
+.credits-note { font-size: 0.76rem; color: var(--muted); margin: 8px 0 0; max-width: 70ch; }
+.credits-note code { background: var(--surface); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); }
